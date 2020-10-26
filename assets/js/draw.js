@@ -171,7 +171,9 @@
                     var canvasHeight = drawer.ctx.canvas.height
                     var colorLayer = drawer.ctx.getImageData(0,0,canvasWidth,canvasHeight)
                     var startCol = drawer.ctx.getImageData(pos.x, pos.y, 1, 1)
-                    console.log(startCol.data)
+                    var pickedCol = hexToRgb(drawer.currentSettings().color)
+
+                    if(startCol.data[0]==pickedCol.r && startCol.data[1]==pickedCol.g && startCol.data[2]==pickedCol.b) break;
 
                     var count = 0
                     /*
