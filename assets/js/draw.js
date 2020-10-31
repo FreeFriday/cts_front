@@ -18,6 +18,9 @@
         canvas: document.getElementById('canvas'),
         // The context of the canvas
         ctx: document.getElementById('canvas').getContext('2d'),
+
+        canvasres: document.getElementById('canvasres'),
+        resctx: document.getElementById('canvasres').getContext('2d'),
         // The element currently being drawn
         selectedElement: null,
         // The shapes we can choose from
@@ -52,6 +55,27 @@
             }
         },
         bgimg: new Image(),
+
+        selectedimg: {},
+
+        drawResult: function (){
+            drawer.resctx.fillStyle = "#ffffff";
+            drawer.resctx.strokeStyle = "#ffffff";
+            drawer.resctx.fillRect(0, 0, drawer.resctx.canvas.width, drawer.resctx.canvas.height)
+
+            for(let i=1;i<drawer.shapes.length;i++){
+                if(drawer.shapes[i] instanceof Rectangle){
+                    let col = drawer.shapes[i].settings.color
+                    if(col in drawer.selectedimg){
+                        var x = drawer.shapes[i].position.x
+                        var y = drawer.shapes[i].position.y
+                        var w = drawer.shapes[i].width
+                        var h = drawer.shapes[i].height
+                        drawer.resctx.drawImage(drawer.selectedimg[col], x, y, w, h)
+                    }
+                }
+            }
+        },
         
         /**
          * Deep copy of settings.
@@ -75,7 +99,7 @@
             //draw background image
             
             if(this.bgimg){
-                drawer.ctx.drawImage(this.bgimg, 0, 0);
+                drawer.ctx.drawImage(this.bgimg, 0, 0, drawer.ctx.canvas.width, drawer.ctx.canvas.height);
             }
             
             for (let i = 1; i < drawer.shapes.length; i++) {
@@ -108,6 +132,7 @@
             if (drawer.undoneShapes.length > 0) {
                 drawer.shapes.push(drawer.undoneShapes.pop());
                 drawer.redraw();
+                drawer.drawResult();
             }
         },
         /**
@@ -117,11 +142,15 @@
             if (drawer.shapes.length > 0) {
                 drawer.undoneShapes.push(drawer.shapes.pop());
                 drawer.redraw();
+                drawer.drawResult();
             }
         }
     };
     // endregion
 
+    drawer.resctx.fillStyle = "#ffffff";
+    drawer.resctx.strokeStyle = "#ffffff";
+    drawer.resctx.fillRect(0, 0, drawer.resctx.canvas.width, drawer.resctx.canvas.height)
     // region Mouse events
     // region Mouse down
     drawer.canvas.addEventListener('mousedown',
@@ -331,6 +360,7 @@
                 drawer.shapes.push(drawer.selectedElement);
                 drawer.selectedElement = null;
                 drawer.undoneShapes.splice(0, drawer.undoneShapes.length);
+                drawer.drawResult();
             }
         }
     );
@@ -691,7 +721,7 @@
             img.src = src;
             img.onload = function() {
                 drawer.bgimg.src = img.src
-                drawer.ctx.drawImage(img, 0, 0);
+                drawer.ctx.drawImage(img, 0, 0, drawer.ctx.canvas.width, drawer.ctx.canvas.height);
                 url.revokeObjectURL(src);
             }
         });
@@ -716,6 +746,43 @@
     // Add upload event for anchor in navigation bar.
     document.getElementById('img-load').addEventListener('click', createTemporaryFileLoader);
     // endregion
+
+
+    function setImage(evt) {
+        let file = evt.target.files[0];
+        if (!file) {
+            return;
+        }
+        let reader = new FileReader();
+        reader.addEventListener('load', function(){
+            var url = window.URL || window.webkitURL
+            var src = url.createObjectURL(file);
+            var img = new Image();
+            img.src = src;
+            img.onload = function() {
+                drawer.selectedimg[drawer.currentSettings().color]=img;
+                drawer.drawResult();
+            }
+        });
+        reader.readAsText(file);
+    }
+
+    /**
+     * Create temporary file input node, click it
+     * and handle the event for uploading one.
+     * Then it will be removed.
+     */
+    function createTemporaryFileLoader() {
+        let inp = window.document.createElement('input');
+        inp.type = 'file';
+        document.body.appendChild(inp);
+        inp.style.visibility = "hidden";
+        inp.addEventListener('change', setImage, false);
+        inp.click();
+        document.body.removeChild(inp);
+    }
+
+    document.getElementById('img-select').addEventListener('click', createTemporaryFileLoader);
 
     // region New image
     document.getElementById('img-clear').addEventListener('click',

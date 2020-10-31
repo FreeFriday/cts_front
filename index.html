@@ -71,7 +71,18 @@
             <ul id="settings-list" class="nav navbar-nav">
                 <li>
                     <a>
-                        <input id="color-selector" type="color">
+                        <input id="color-selector" type="color" list="presetColors">
+                        <datalist id="presetColors">
+                            <option>#000000</option>/>
+                            <option>#ff0000</option>
+                            <option>#00ff00</option>
+                            <option>#0000ff</option>
+                        </datalist>
+                    </a>
+                </li>
+                <li>
+                    <a id="img-select">
+                        <span class="glyphicon glyphicon-cloud-upload"></span>
                     </a>
                 </li>
                 <li>
@@ -124,16 +135,17 @@
     <!-- Canvas -->
     <div class="container-fluid" id="maincanvas">
             <div class="col-xs-6">
-                <canvas id="canvas" width=700 height=400>
+                <canvas id="canvas" width=800 height=480>
                     Your browser does not support canvas :(
                 </canvas>
             </div>
             <div class="col-xs-6">
-                <img src="assets/testimg.png" width=700 height=400>
+                <canvas id="canvasres" width=800 height=480>
+                    Your browser does not support canvas :(
+                </canvas>
             </div>
         
     </div>
-
 
     <!-- Hidden modal for size adjustments -->
     <div id="size-modal" class="modal fade" role="dialog">
