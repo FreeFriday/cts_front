@@ -772,7 +772,7 @@
      * and handle the event for uploading one.
      * Then it will be removed.
      */
-    function createTemporaryFileLoader() {
+    function createTemporaryFileLoader2() {
         let inp = window.document.createElement('input');
         inp.type = 'file';
         document.body.appendChild(inp);
@@ -782,7 +782,7 @@
         document.body.removeChild(inp);
     }
 
-    document.getElementById('img-select').addEventListener('click', createTemporaryFileLoader);
+    document.getElementById('img-select').addEventListener('click', createTemporaryFileLoader2);
 
     // region New image
     document.getElementById('img-clear').addEventListener('click',
