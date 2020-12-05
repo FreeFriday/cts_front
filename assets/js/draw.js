@@ -18,6 +18,9 @@
         canvas: document.getElementById('canvas'),
         // The context of the canvas
         ctx: document.getElementById('canvas').getContext('2d'),
+
+        canvasres: document.getElementById('canvasres'),
+        resctx: document.getElementById('canvasres').getContext('2d'),
         // The element currently being drawn
         selectedElement: null,
         // The shapes we can choose from
@@ -52,6 +55,51 @@
             }
         },
         bgimg: new Image(),
+
+        selectedimg: {},
+
+        // order of layer
+        layerOrder: [],
+
+        display: function() {
+            drawer.resctx.fillStyle = "#ffffff";
+            drawer.resctx.strokeStyle = "#ffffff";
+            drawer.resctx.fillRect(0, 0, drawer.resctx.canvas.width, drawer.resctx.canvas.height)
+
+            for (var i of drawer.layerOrder){
+                if(i < drawer.shapes.length && drawer.shapes[i] instanceof Rectangle){
+                    let col = drawer.shapes[i].settings.color
+                    if(col in drawer.selectedimg){
+                        var x = drawer.shapes[i].position.x
+                        var y = drawer.shapes[i].position.y
+                        var w = drawer.shapes[i].width
+                        var h = drawer.shapes[i].height
+                        drawer.resctx.drawImage(drawer.selectedimg[col], x, y, w, h)
+                    }
+                }
+            }
+        },
+
+        drawResult: function (){
+            drawer.display();
+            // drawer.resctx.fillStyle = "#ffffff";
+            // drawer.resctx.strokeStyle = "#ffffff";
+            // drawer.resctx.fillRect(0, 0, drawer.resctx.canvas.width, drawer.resctx.canvas.height)
+
+            // for(let id=1;id<drawer.shapes.length;id++){
+            //     let i = drawer.layerOrder[id];
+            //     if(drawer.shapes[i] instanceof Rectangle){
+            //         let col = drawer.shapes[i].settings.color
+            //         if(col in drawer.selectedimg){
+            //             var x = drawer.shapes[i].position.x
+            //             var y = drawer.shapes[i].position.y
+            //             var w = drawer.shapes[i].width
+            //             var h = drawer.shapes[i].height
+            //             drawer.resctx.drawImage(drawer.selectedimg[col], x, y, w, h)
+            //         }
+            //     }
+            // }
+        },
         
         /**
          * Deep copy of settings.
@@ -75,7 +123,7 @@
             //draw background image
             
             if(this.bgimg){
-                drawer.ctx.drawImage(this.bgimg, 0, 0);
+                drawer.ctx.drawImage(this.bgimg, 0, 0, drawer.ctx.canvas.width, drawer.ctx.canvas.height);
             }
             
             for (let i = 1; i < drawer.shapes.length; i++) {
@@ -106,8 +154,10 @@
          */
         redo: function () {
             if (drawer.undoneShapes.length > 0) {
+                drawer.layerOrder.push(drawer.shapes.length);
                 drawer.shapes.push(drawer.undoneShapes.pop());
                 drawer.redraw();
+                drawer.drawResult();
             }
         },
         /**
@@ -116,12 +166,34 @@
         undo: function () {
             if (drawer.shapes.length > 0) {
                 drawer.undoneShapes.push(drawer.shapes.pop());
+                const index = drawer.layerOrder.indexOf(drawer.shapes.length);
+                if (index > -1) drawer.layerOrder.splice(index, 1);
                 drawer.redraw();
+                drawer.drawResult();
             }
+        },
+        /**
+         * Wrapper for drawer.shapes.push
+         */
+        shapePush: function (item) {
+            drawer.layerOrder(drawer.shapes.length);
+            drawer.shapes.push(item);
+        },
+        /**
+         * Wrapper for drawer.shapes.pop
+         */
+        shapePop: function () {
+            let popped = drawer.shapes.pop();
+            const idx = drawer.layerOrder.indexOf(drawer.shapes.length);
+            if (idx > -1) drawer.layerOrder.splice(idx,1);
+            return popped;
         }
     };
     // endregion
 
+    drawer.resctx.fillStyle = "#ffffff";
+    drawer.resctx.strokeStyle = "#ffffff";
+    drawer.resctx.fillRect(0, 0, drawer.resctx.canvas.width, drawer.resctx.canvas.height)
     // region Mouse events
     // region Mouse down
     drawer.canvas.addEventListener('mousedown',
@@ -171,7 +243,9 @@
                     var canvasHeight = drawer.ctx.canvas.height
                     var colorLayer = drawer.ctx.getImageData(0,0,canvasWidth,canvasHeight)
                     var startCol = drawer.ctx.getImageData(pos.x, pos.y, 1, 1)
-                    console.log(startCol.data)
+                    var pickedCol = hexToRgb(drawer.currentSettings().color)
+
+                    if(startCol.data[0]==pickedCol.r && startCol.data[1]==pickedCol.g && startCol.data[2]==pickedCol.b) break;
 
                     var count = 0
                     /*
@@ -326,9 +400,11 @@
         function (mouseEvent) {
             //if (drawer.selectedElement && drawer.selectedShape !== drawer.availableShapes.DrawnText) {
             if (drawer.selectedElement) {
+                drawer.layerOrder.push(drawer.shapes.length);
                 drawer.shapes.push(drawer.selectedElement);
                 drawer.selectedElement = null;
                 drawer.undoneShapes.splice(0, drawer.undoneShapes.length);
+                drawer.drawResult();
             }
         }
     );
@@ -345,6 +421,7 @@
      */
     function textKeyPress(key) {
         if (key === 'Enter') {
+            drawer.layerOrder.push(drawer.shapes.length);
             drawer.shapes.push(drawer.selectedElement);
             drawer.selectedElement = null;
             drawer.undoneShapes.splice(0, drawer.undoneShapes.length);
@@ -407,6 +484,7 @@
                     let clickedShape = elem.dataset.shape;
                     if (clickedShape !== drawer.selectedShape) {
                         if (drawer.selectedElement && drawer.selectedShape === drawer.availableShapes.DrawnText) {
+                            drawer.layerOrder.push(drawer.shapes.length);
                             drawer.shapes.push(drawer.selectedElement);
                             drawer.undoneShapes.splice(0, drawer.undoneShapes.length);
                         }
@@ -689,7 +767,7 @@
             img.src = src;
             img.onload = function() {
                 drawer.bgimg.src = img.src
-                drawer.ctx.drawImage(img, 0, 0);
+                drawer.ctx.drawImage(img, 0, 0, drawer.ctx.canvas.width, drawer.ctx.canvas.height);
                 url.revokeObjectURL(src);
             }
         });
@@ -714,6 +792,196 @@
     // Add upload event for anchor in navigation bar.
     document.getElementById('img-load').addEventListener('click', createTemporaryFileLoader);
     // endregion
+
+
+    function setImage(evt) {
+        let file = evt.target.files[0];
+        if (!file) {
+            return;
+        }
+        let reader = new FileReader();
+        reader.addEventListener('load', function(){
+            var url = window.URL || window.webkitURL
+            var src = url.createObjectURL(file);
+            var img = new Image();
+            img.src = src;
+            img.onload = function() {
+                drawer.selectedimg[drawer.currentSettings().color]=img;
+                drawer.drawResult();
+            }
+        });
+        reader.readAsText(file);
+    }
+
+    /**
+     * Create temporary file input node, click it
+     * and handle the event for uploading one.
+     * Then it will be removed.
+     */
+    function createTemporaryFileLoader2() {
+        // let inp = window.document.createElement('input');
+        // inp.type = 'file';
+        // document.body.appendChild(inp);
+        // inp.style.visibility = "hidden";
+        // inp.addEventListener('change', setImage, false);
+        // inp.click();
+        // document.body.removeChild(inp);
+    }
+
+    // document.getElementById('img-select').addEventListener('click', createTemporaryFileLoader2);
+
+
+    // load object list images of selected button
+    function loadObjectImages(name) {
+        console.log("Clicked!");
+        
+        // <label>
+        //     <input type="radio" name="test" value="small" checked>
+        //     <img src="data:image/png;base64, <base64>" height="128">
+        // </label>
+        makeLabel = function(idx, img) {
+            let newLab = document.createElement('label');
+            let newInput = document.createElement('input');
+            newInput.setAttribute('type', 'radio');
+            newInput.setAttribute('name', idx);
+            newInput.setAttribute('value', idx);
+            let newImg = document.createElement('img');
+            newImg.setAttribute('src', 'data:image/png;base64, '+img);
+            newImg.setAttribute('height', '128');
+            newLab.appendChild(newInput);
+            newLab.appendChild(newImg);
+            return newLab;
+        }
+
+        let imgList = document.getElementById('object-images');
+        imgList.innerText = '';
+
+        $.ajax({
+            url:'/obj/get/'+name+'?from=0&to=-1',
+            type:'GET',
+            success:function(data){
+                jsonData = JSON.parse(data);
+                if (jsonData.error) {
+                    if (jsonData.error.code == "ENOENT")
+                        imgList.innerText = name + ' : no such class exists';
+                    else if (jsonData.error.code == "EOUTOFBOUND")
+                        imgList.innerText = name + ' : no images found';
+                    else 
+                        imgList.innerText = 'Unknown Error Occured! :(';
+                    return;
+                }
+                // For now, paste all images
+                // TODO : Use lazy loading
+                for (i in jsonData.data) {
+                    imgList.appendChild(makeLabel(i, jsonData.data[i]));
+                }
+            },
+            error: function (jqXHR, textStatus, errorThrown) {
+                console.log("ERR!");
+                console.log(errorThrown);
+            }
+        });
+    }
+
+    function objectSelected() {
+        $("#selected-object")[0].innerHTML = $(this)[0].innerText + "   <span class=\"caret\"></span>";
+        loadObjectImages($(this)[0].innerText);
+    }
+
+    // get object list and make dropdown option (e.g. chiken, cup, ...)
+    function getObjectList() {
+        // dropdown list
+        var list = document.getElementById('object-list');
+        list.textContent = '';
+
+        let makeDropdownOption = function(content, link) {
+            let newItem = document.createElement('a');
+            newItem.setAttribute('role', 'menuitem');
+            newItem.setAttribute('tabindex', '-1');
+            newItem.setAttribute('href', link);
+            newItem.innerText = content;
+            let listItem = document.createElement('li');
+            listItem.setAttribute('role', 'presentation');
+            listItem.appendChild(newItem);
+            return listItem;
+        }
+        
+        // dummy option
+        list.appendChild(makeDropdownOption("Loading...", "#!"));
+
+        // get option list from server
+        $.ajax({
+            url:'/obj/list',
+            type:'GET',
+            success:function(data){
+                list.textContent = '';
+                const obj = JSON.parse(data);
+                
+                for (var names of obj.list) {
+                    list.appendChild(makeDropdownOption(names, "#!"));
+                }
+
+                // add event listener for 
+                $('#object-list a').on('click', objectSelected);
+            },
+            error: function (jqXHR, textStatus, errorThrown) {
+                console.log("ERR!");
+                console.log(errorThrown);
+
+            }
+        });
+    }
+
+    $('#object-modal').on('show.bs.modal', getObjectList);
+
+    function setImage2() {
+        var checked = $('#object-images input[type=radio]:checked');
+        if (!checked) {
+            return;
+        }
+        var img = checked.next()[0];
+        drawer.selectedimg[drawer.currentSettings().color]=img;
+        drawer.drawResult();
+        $('#object-modal').modal('hide');
+    }
+
+    $('#upload-image').on('click', setImage2);
+
+    function updateLayerTable() {
+        var tbody = $('#layer-table > tbody');
+
+        makeRow = function(idx, col, src) {
+            var c1 = $('<th>').attr('scope', 'row').text(idx);
+            var c2 = $('<td>').append($('<span>').attr('title',col).append($('<div>').attr('class','box').attr('style','background-color:'+col)));
+            var c3 = $('<td>').append($('<img>').attr('src',src).attr('width',30).attr('height',30));
+            return $('<tr>').append(c1,c2,c3);
+        };
+
+        tbody.text('');
+
+        var real_idx = 1;
+        for (var i=1;i<drawer.shapes.length;i++) {
+            if(drawer.shapes[i] instanceof Rectangle){
+                let col = drawer.shapes[i].settings.color
+                if(col in drawer.selectedimg){
+                    console.log(col);
+                    tbody.append(makeRow(real_idx, col, drawer.selectedimg[col].getAttribute('src')));
+                    real_idx++;
+                    // drawer.resctx.drawImage(drawer.selectedimg[col], x, y, w, h)
+                }
+            }
+        }
+    }
+
+    // TODO : use more sophisticated way
+    let updateTableTimer = setInterval(updateLayerTable, 1000);
+
+    let layerList = $('#layer-table > tbody')[0];
+    let sortableLayer = Sortable.create(layerList, {
+        onChange: function() {
+
+        }
+    });
 
     // region New image
     document.getElementById('img-clear').addEventListener('click',
