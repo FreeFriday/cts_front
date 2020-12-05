@@ -62,12 +62,24 @@
         layerOrder: [],
 
         display: function() {
+
             drawer.resctx.fillStyle = "#ffffff";
             drawer.resctx.strokeStyle = "#ffffff";
             drawer.resctx.fillRect(0, 0, drawer.resctx.canvas.width, drawer.resctx.canvas.height)
 
+            var tbody = $('#layer-table > tbody');
+            tbody.text('');
+
+            makeRow = function(idx, col, src) {
+                var c1 = $('<th>').attr('scope', 'row').text(idx);
+                var c2 = $('<td>').append($('<span>').attr('title',col).append($('<div>').attr('class','box').attr('style','background-color:'+col)));
+                var c3 = $('<td>').append($('<img>').attr('src',src).attr('width',30).attr('height',30));
+                return $('<tr>').attr('data-id', idx).append(c1,c2,c3);
+            };
+
             for (var i of drawer.layerOrder){
-                if(i < drawer.shapes.length && drawer.shapes[i] instanceof Rectangle){
+            // for (var i=1;i<drawer.shapes.length;i++) {
+                if(i >= 0 && i < drawer.shapes.length && (drawer.shapes[i] instanceof Rectangle)){
                     let col = drawer.shapes[i].settings.color
                     if(col in drawer.selectedimg){
                         var x = drawer.shapes[i].position.x
@@ -75,12 +87,15 @@
                         var w = drawer.shapes[i].width
                         var h = drawer.shapes[i].height
                         drawer.resctx.drawImage(drawer.selectedimg[col], x, y, w, h)
+
+                        tbody.append(makeRow(i, col, drawer.selectedimg[col].getAttribute('src')));
                     }
                 }
             }
         },
 
         drawResult: function (){
+            
             drawer.display();
             // drawer.resctx.fillStyle = "#ffffff";
             // drawer.resctx.strokeStyle = "#ffffff";
@@ -154,8 +169,7 @@
          */
         redo: function () {
             if (drawer.undoneShapes.length > 0) {
-                drawer.layerOrder.push(drawer.shapes.length);
-                drawer.shapes.push(drawer.undoneShapes.pop());
+                drawer.shapePush(drawer.undoneShapes.pop());
                 drawer.redraw();
                 drawer.drawResult();
             }
@@ -165,9 +179,7 @@
          */
         undo: function () {
             if (drawer.shapes.length > 0) {
-                drawer.undoneShapes.push(drawer.shapes.pop());
-                const index = drawer.layerOrder.indexOf(drawer.shapes.length);
-                if (index > -1) drawer.layerOrder.splice(index, 1);
+                drawer.undoneShapes.push(drawer.shapePop());
                 drawer.redraw();
                 drawer.drawResult();
             }
@@ -176,8 +188,9 @@
          * Wrapper for drawer.shapes.push
          */
         shapePush: function (item) {
-            drawer.layerOrder(drawer.shapes.length);
+            drawer.layerOrder.push(drawer.shapes.length);
             drawer.shapes.push(item);
+            console.log(drawer.layerOrder);
         },
         /**
          * Wrapper for drawer.shapes.pop
@@ -186,6 +199,7 @@
             let popped = drawer.shapes.pop();
             const idx = drawer.layerOrder.indexOf(drawer.shapes.length);
             if (idx > -1) drawer.layerOrder.splice(idx,1);
+            console.log(drawer.layerOrder);
             return popped;
         }
     };
@@ -226,7 +240,7 @@
                   /*
                     // If we are already drawing text, store that one
                     if (drawer.selectedElement) {
-                        drawer.shapes.push(drawer.selectedElement);
+                        drawer.shapePush(drawer.selectedElement);
                         drawer.undoneShapes.splice(0, drawer.undoneShapes.length);
                     }
                     drawer.selectedElement = new DrawnText(pos, drawer.currentSettings());
@@ -400,8 +414,7 @@
         function (mouseEvent) {
             //if (drawer.selectedElement && drawer.selectedShape !== drawer.availableShapes.DrawnText) {
             if (drawer.selectedElement) {
-                drawer.layerOrder.push(drawer.shapes.length);
-                drawer.shapes.push(drawer.selectedElement);
+                drawer.shapePush(drawer.selectedElement);
                 drawer.selectedElement = null;
                 drawer.undoneShapes.splice(0, drawer.undoneShapes.length);
                 drawer.drawResult();
@@ -421,8 +434,7 @@
      */
     function textKeyPress(key) {
         if (key === 'Enter') {
-            drawer.layerOrder.push(drawer.shapes.length);
-            drawer.shapes.push(drawer.selectedElement);
+            drawer.shapePush(drawer.selectedElement);
             drawer.selectedElement = null;
             drawer.undoneShapes.splice(0, drawer.undoneShapes.length);
         } else {
@@ -484,8 +496,7 @@
                     let clickedShape = elem.dataset.shape;
                     if (clickedShape !== drawer.selectedShape) {
                         if (drawer.selectedElement && drawer.selectedShape === drawer.availableShapes.DrawnText) {
-                            drawer.layerOrder.push(drawer.shapes.length);
-                            drawer.shapes.push(drawer.selectedElement);
+                            drawer.shapePush(drawer.selectedElement);
                             drawer.undoneShapes.splice(0, drawer.undoneShapes.length);
                         }
                         drawer.selectedElement = null;
@@ -682,7 +693,7 @@
     function createShapeFromJson(jsonShape) {
         switch (jsonShape.type) {
             case 'Rectangle':
-                drawer.shapes.push(new Rectangle(
+                drawer.shapePush(new Rectangle(
                     jsonShape.position,
                     jsonShape.settings,
                     jsonShape.width,
@@ -690,7 +701,7 @@
                 ));
                 break;
             case 'Oval':
-                drawer.shapes.push(new Oval(
+                drawer.shapePush(new Oval(
                     jsonShape.position,
                     jsonShape.settings,
                     jsonShape.xRadius,
@@ -698,14 +709,14 @@
                 ));
                 break;
             case 'Circle':
-                drawer.shapes.push(new Circle(
+                drawer.shapePush(new Circle(
                     jsonShape.position,
                     jsonShape.settings,
                     jsonShape.xRadius
                 ));
                 break;
             case 'Line':
-                drawer.shapes.push(new Line(
+                drawer.shapePush(new Line(
                     jsonShape.position,
                     jsonShape.settings,
                     jsonShape.endPosition
@@ -716,14 +727,14 @@
                 for (let j = 0; j < jsonShape.xList.length; j++) {
                     ll.resize(jsonShape.xList[j], jsonShape.yList[j]);
                 }
-                drawer.shapes.push(ll);
+                drawer.shapePush(ll);
                 break;
             case 'DrawnText':
                 let dt = new DrawnText(jsonShape.position, jsonShape.settings);
                 for (let j = 0; j < jsonShape.chars.length; j++) {
                     dt.resize(jsonShape.chars[j]);
                 }
-                drawer.shapes.push(dt);
+                drawer.shapePush(dt);
                 break;
         }
     }
@@ -974,12 +985,15 @@
     }
 
     // TODO : use more sophisticated way
-    let updateTableTimer = setInterval(updateLayerTable, 1000);
+    // let updateTableTimer = setInterval(updateLayerTable, 1000);
 
     let layerList = $('#layer-table > tbody')[0];
     let sortableLayer = Sortable.create(layerList, {
-        onChange: function() {
-
+        onEnd: function() {
+            var order = this.toArray().map(Number);
+            drawer.layerOrder = Array.from(order);
+            console.log(drawer.layerOrder);
+            drawer.display();
         }
     });
 
