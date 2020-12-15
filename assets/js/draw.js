@@ -72,7 +72,15 @@
 
             makeRow = function(idx, col, src) {
                 var c1 = $('<th>').attr('scope', 'row').text(idx);
-                var c2 = $('<td>').append($('<span>').attr('title',col).append($('<div>').attr('class','box').attr('style','background-color:'+col)));
+                var colorSquare = $('<div>').attr('class','box').attr('style','background-color:'+col+'; cursor: pointer;').click(function(){
+                    $("#color-selector").val(col);
+                    // trigger color change event
+                    var evt = document.createEvent('HTMLEvents');
+                    evt.initEvent('change', true, true);
+                    var el = document.getElementById("color-selector");
+                    el.dispatchEvent(evt);
+                });
+                var c2 = $('<td>').append($('<span>').attr('title',col).append(colorSquare));
                 var c3 = $('<td>').append($('<img>').attr('src',src).attr('width',30).attr('height',30));
                 return $('<tr>').attr('data-id', idx).append(c1,c2,c3);
             };
@@ -854,7 +862,7 @@
             let newLab = document.createElement('label');
             let newInput = document.createElement('input');
             newInput.setAttribute('type', 'radio');
-            newInput.setAttribute('name', idx);
+            newInput.setAttribute('name', name+"_radio");
             newInput.setAttribute('value', idx);
             let newImg = document.createElement('img');
             newImg.setAttribute('src', 'data:image/png;base64, '+img);
@@ -957,35 +965,6 @@
     }
 
     $('#upload-image').on('click', setImage2);
-
-    function updateLayerTable() {
-        var tbody = $('#layer-table > tbody');
-
-        makeRow = function(idx, col, src) {
-            var c1 = $('<th>').attr('scope', 'row').text(idx);
-            var c2 = $('<td>').append($('<span>').attr('title',col).append($('<div>').attr('class','box').attr('style','background-color:'+col)));
-            var c3 = $('<td>').append($('<img>').attr('src',src).attr('width',30).attr('height',30));
-            return $('<tr>').append(c1,c2,c3);
-        };
-
-        tbody.text('');
-
-        var real_idx = 1;
-        for (var i=1;i<drawer.shapes.length;i++) {
-            if(drawer.shapes[i] instanceof Rectangle){
-                let col = drawer.shapes[i].settings.color
-                if(col in drawer.selectedimg){
-                    console.log(col);
-                    tbody.append(makeRow(real_idx, col, drawer.selectedimg[col].getAttribute('src')));
-                    real_idx++;
-                    // drawer.resctx.drawImage(drawer.selectedimg[col], x, y, w, h)
-                }
-            }
-        }
-    }
-
-    // TODO : use more sophisticated way
-    // let updateTableTimer = setInterval(updateLayerTable, 1000);
 
     let layerList = $('#layer-table > tbody')[0];
     let sortableLayer = Sortable.create(layerList, {
