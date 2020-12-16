@@ -44,6 +44,13 @@ class Shape {
     resize(x, y) {
 
     }
+
+    /**
+     * Return deep copy of object
+     */
+    deepcopy() {
+        return new Shape(this.position, this.settings);
+    }
 }
 // endregion
 
@@ -80,7 +87,11 @@ class Rectangle extends Shape {
     resize(x, y) {
         this.width = x - this.position.x;
         this.height = y - this.position.y;
-        console.log(this.position, this.width, this.height)
+    }
+
+    /** @inheritDoc */
+    deepcopy() {
+        return new Rectangle(this.position, this.settings, this.width, this.height);
     }
 }
 // endregion
@@ -120,6 +131,11 @@ class Fillup extends Shape {
     }
 
     move(x, y){
+    }
+
+    /** @inheritDoc */
+    deepcopy() {
+        return new Fillup(this.position, this.settings);
     }
 }
 // endregion
@@ -170,6 +186,11 @@ class Oval extends Shape {
         this.xRadius = Math.abs(x - this.position.x) / 2;
         this.yRadius = Math.abs(y - this.position.y) / 2;
     }
+
+    /** @inheritDoc */
+    deepcopy() {
+        return new Oval(this.position, this.settings, this.xRadius, this.yRadius);
+    }
 }
 // endregion
 
@@ -196,6 +217,11 @@ class Circle extends Oval {
         let radius = Math.max(Math.abs(x - this.position.x), Math.abs(y - this.position.y)) / 2;
         this.xRadius = radius;
         this.yRadius = radius;
+    }
+
+    /** @inheritDoc */
+    deepcopy() {
+        return new Circle(this.position, this.settings, this.xRadius);
     }
 }
 // endregion
@@ -231,6 +257,11 @@ class Line extends Shape {
     resize(x, y) {
         this.endPosition.x = x;
         this.endPosition.y = y;
+    }
+
+    /** @inheritDoc */
+    deepcopy() {
+        return new Line(this.position, this.settings, this.endPosition);
     }
 }
 // endregion
@@ -276,6 +307,14 @@ class LineList extends Shape {
     resize(x, y) {
         this.xList.push(x);
         this.yList.push(y);
+    }
+
+    /** @inheritDoc */
+    deepcopy() {
+        var newLine = new LineList(this.position, this.settings);
+        newLine.xList = JSON.parse(JSON.stringify(this.xList));
+        newLine.yList = JSON.parse(JSON.stringify(this.yList));
+        return newLine;
     }
 }
 // endregion
@@ -325,6 +364,45 @@ class DrawnText extends Shape {
         if (key.length === 1) {
             this.chars.push(key);
         }
+    }
+
+    /** @inheritDoc */
+    deepcopy() {
+        var newText = new DrawnText(this.position, this.settings);
+        newText.chars = JSON.parse(JSON.stringify(this.chars));
+        return newText;
+    }
+}
+// endregion
+
+// region NullShape
+/**
+ * Null shape (just for placeholder).
+ */
+class NullShape extends Shape {
+    /**
+     * Create a new null shape.
+     *
+     * @param position The x and y position of the shape
+     * @param settings Various settings for drawing the shape {color, filled, width, font}
+     */
+    constructor() {
+        super(null, null);
+    }
+
+    /** @inheritDoc */
+    render() {
+        // does nothing
+    }
+
+    /** @inheritDoc */
+    resize() {
+        // does nothing
+    }
+
+    /** @inheritDoc */
+    deepcopy() {
+        return new NullShape();
     }
 }
 // endregion

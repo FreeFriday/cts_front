@@ -51,6 +51,7 @@
                     font: '12pt sans-serif'
                 }, this.ctx.canvas.width, this.ctx.canvas.height));
                 this.redraw();
+                this.drawResult();
                 this.inited = true
             }
         },
@@ -61,18 +62,47 @@
         // order of layer
         layerOrder: [],
 
-        display: function() {
+        statHistory: [],
 
+        undoHistory: [],
+
+        // deep copy current status
+        copyStatus: function() {
+            var newShapes = [];
+            for (shp of drawer.shapes) {
+                newShapes.push(shp.deepcopy());
+            }
+            var newImg = {};
+            for (var key in drawer.selectedimg){
+                // image will be copied shallowly, as it will not be modified
+                newImg[key] = drawer.selectedimg[key];
+            }
+            return [newShapes,__deepcopy(drawer.layerOrder),newImg];
+        },
+
+        // (shallow) copy status
+        setStatus: function(newStat) {
+            drawer.shapes = newStat[0];
+            drawer.layerOrder = newStat[1];
+            drawer.selectedimg = newStat[2];
+        },
+
+        display: function() {
+            drawer.statHistory.push(drawer.copyStatus());
+
+            // draw background
             drawer.resctx.fillStyle = "#ffffff";
             drawer.resctx.strokeStyle = "#ffffff";
             drawer.resctx.fillRect(0, 0, drawer.resctx.canvas.width, drawer.resctx.canvas.height)
 
+            // layer table
             var tbody = $('#layer-table > tbody');
             tbody.text('');
 
+            // make layer table entry
             makeRow = function(idx, col, src) {
                 var c1 = $('<th>').attr('scope', 'row').text(idx);
-                var colorSquare = $('<div>').attr('class','box').attr('style','background-color:'+col+'; cursor: pointer;').click(function(){
+                var colorSquare = $('<div>').attr('class','box').attr('style','height: 25px; width: 25px; background-color:'+col+'; cursor: pointer;').click(function(){
                     $("#color-selector").val(col);
                     // trigger color change event
                     var evt = document.createEvent('HTMLEvents');
@@ -81,21 +111,29 @@
                     el.dispatchEvent(evt);
                 });
                 var c2 = $('<td>').append($('<span>').attr('title',col).append(colorSquare));
-                var c3 = $('<td>').append($('<img>').attr('src',src).attr('width',30).attr('height',30));
-                return $('<tr>').attr('data-id', idx).append(c1,c2,c3);
+                var c3 = $('<td>').append($('<img>').attr('src',src).attr('width',25).attr('height',25));
+                var c4 = $('<td>').append($('<span>').attr('style','cursor: pointer;').html('&#10006;').click(function(){
+                    $("#layer-table > tbody > tr[data-id="+idx+"]").remove();
+                    drawer.shapes[idx] = new NullShape();
+                    // sync display with layer
+                    drawer.redraw();
+                    syncWithLayer();
+                }));
+                return $('<tr>').attr('data-id', idx).append(c1,c2,c3,c4);
             };
 
             for (var i of drawer.layerOrder){
-            // for (var i=1;i<drawer.shapes.length;i++) {
                 if(i >= 0 && i < drawer.shapes.length && (drawer.shapes[i] instanceof Rectangle)){
                     let col = drawer.shapes[i].settings.color
                     if(col in drawer.selectedimg){
+                        // draw image
                         var x = drawer.shapes[i].position.x
                         var y = drawer.shapes[i].position.y
                         var w = drawer.shapes[i].width
                         var h = drawer.shapes[i].height
                         drawer.resctx.drawImage(drawer.selectedimg[col], x, y, w, h)
 
+                        // display layer
                         tbody.append(makeRow(i, col, drawer.selectedimg[col].getAttribute('src')));
                     }
                 }
@@ -103,25 +141,9 @@
         },
 
         drawResult: function (){
-            
+            console.log(drawer.statHistory);
+            console.log(drawer.shapes);
             drawer.display();
-            // drawer.resctx.fillStyle = "#ffffff";
-            // drawer.resctx.strokeStyle = "#ffffff";
-            // drawer.resctx.fillRect(0, 0, drawer.resctx.canvas.width, drawer.resctx.canvas.height)
-
-            // for(let id=1;id<drawer.shapes.length;id++){
-            //     let i = drawer.layerOrder[id];
-            //     if(drawer.shapes[i] instanceof Rectangle){
-            //         let col = drawer.shapes[i].settings.color
-            //         if(col in drawer.selectedimg){
-            //             var x = drawer.shapes[i].position.x
-            //             var y = drawer.shapes[i].position.y
-            //             var w = drawer.shapes[i].width
-            //             var h = drawer.shapes[i].height
-            //             drawer.resctx.drawImage(drawer.selectedimg[col], x, y, w, h)
-            //         }
-            //     }
-            // }
         },
         
         /**
@@ -143,8 +165,8 @@
         drawAllStoredShapes: function () {
             //draw white background
             drawer.shapes[0].render(drawer.ctx)
+
             //draw background image
-            
             if(this.bgimg){
                 drawer.ctx.drawImage(this.bgimg, 0, 0, drawer.ctx.canvas.width, drawer.ctx.canvas.height);
             }
@@ -176,8 +198,8 @@
          * Add the last undone shape back to the list of shapes.
          */
         redo: function () {
-            if (drawer.undoneShapes.length > 0) {
-                drawer.shapePush(drawer.undoneShapes.pop());
+            if (drawer.undoHistory.length > 0) {
+                drawer.setStatus(drawer.undoHistory.pop());
                 drawer.redraw();
                 drawer.drawResult();
             }
@@ -186,8 +208,9 @@
          * Remove the last shape drawn and place in temporary redo storage.
          */
         undo: function () {
-            if (drawer.shapes.length > 0) {
-                drawer.undoneShapes.push(drawer.shapePop());
+            if (drawer.statHistory.length > 1) {
+                drawer.undoHistory.push(drawer.statHistory.pop());
+                drawer.setStatus(drawer.statHistory.pop());
                 drawer.redraw();
                 drawer.drawResult();
             }
@@ -198,7 +221,6 @@
         shapePush: function (item) {
             drawer.layerOrder.push(drawer.shapes.length);
             drawer.shapes.push(item);
-            console.log(drawer.layerOrder);
         },
         /**
          * Wrapper for drawer.shapes.pop
@@ -207,7 +229,6 @@
             let popped = drawer.shapes.pop();
             const idx = drawer.layerOrder.indexOf(drawer.shapes.length);
             if (idx > -1) drawer.layerOrder.splice(idx,1);
-            console.log(drawer.layerOrder);
             return popped;
         }
     };
@@ -424,7 +445,7 @@
             if (drawer.selectedElement) {
                 drawer.shapePush(drawer.selectedElement);
                 drawer.selectedElement = null;
-                drawer.undoneShapes.splice(0, drawer.undoneShapes.length);
+                drawer.undoHistory.splice(0, drawer.undoHistory.length);
                 drawer.drawResult();
             }
         }
@@ -444,7 +465,7 @@
         if (key === 'Enter') {
             drawer.shapePush(drawer.selectedElement);
             drawer.selectedElement = null;
-            drawer.undoneShapes.splice(0, drawer.undoneShapes.length);
+            drawer.undoHistory.splice(0, drawer.undoHistory.length);
         } else {
             drawer.selectedElement.resize(key);
             drawer.redraw();
@@ -505,7 +526,7 @@
                     if (clickedShape !== drawer.selectedShape) {
                         if (drawer.selectedElement && drawer.selectedShape === drawer.availableShapes.DrawnText) {
                             drawer.shapePush(drawer.selectedElement);
-                            drawer.undoneShapes.splice(0, drawer.undoneShapes.length);
+                            drawer.undoHistory.splice(0, drawer.undoHistory.length);
                         }
                         drawer.selectedElement = null;
                         drawer.selectedShape = clickedShape;
@@ -759,7 +780,7 @@
         let tmpList = JSON.parse(contents);
         drawer.selectedElement = null;
         drawer.shapes.splice(0, drawer.shapes.length);
-        drawer.undoneShapes.splice(0, drawer.undoneShapes.length);
+        drawer.undoHistory.splice(0, drawer.undoHistory.length);
         for (let i = 0; i < tmpList.length; i++) {
             createShapeFromJson(tmpList[i]);
         }
@@ -852,8 +873,6 @@
 
     // load object list images of selected button
     function loadObjectImages(name) {
-        console.log("Clicked!");
-        
         // <label>
         //     <input type="radio" name="test" value="small" checked>
         //     <img src="data:image/png;base64, <base64>" height="128">
@@ -966,13 +985,27 @@
 
     $('#upload-image').on('click', setImage2);
 
+    // sync display with layer
+    function syncWithLayer() {
+        var order = sortableLayer.toArray().map(Number);
+        drawer.layerOrder = Array.from(order);
+        console.log(drawer.layerOrder);
+        drawer.display();
+    }
+
+    // deepcopy of object (with no function)
+    function __deepcopy(obj) { 
+        return JSON.parse(JSON.stringify(obj));
+    }
+
     let layerList = $('#layer-table > tbody')[0];
     let sortableLayer = Sortable.create(layerList, {
-        onEnd: function() {
-            var order = this.toArray().map(Number);
-            drawer.layerOrder = Array.from(order);
-            console.log(drawer.layerOrder);
-            drawer.display();
+        onUpdate: function() {
+            syncWithLayer();
+            // var order = this.toArray().map(Number);
+            // drawer.layerOrder = Array.from(order);
+            // console.log(drawer.layerOrder);
+            // drawer.display();
         }
     });
 
@@ -986,7 +1019,7 @@
         function (evt) {
             drawer.selectedElement = null;
             drawer.shapes.splice(0, drawer.shapes.length);
-            drawer.undoneShapes.splice(0, drawer.undoneShapes.length);
+            drawer.undoHistory.splice(0, drawer.undoHistory.length);
             drawer.redraw();
         }
     );
