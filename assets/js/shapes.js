@@ -135,7 +135,11 @@ class Fillup extends Shape {
 
     /** @inheritDoc */
     deepcopy() {
-        return new Fillup(this.position, this.settings);
+        var newFill = new Fillup(this.position, this.settings);
+        for (var e of this.li) {
+            newFill.li.push([e[0],e[1]]);
+        }
+        return newFill;
     }
 }
 // endregion
@@ -315,6 +319,15 @@ class LineList extends Shape {
         newLine.xList = JSON.parse(JSON.stringify(this.xList));
         newLine.yList = JSON.parse(JSON.stringify(this.yList));
         return newLine;
+    }
+
+    getsize() {
+        if (this.xList.length == 0 || this.yList.length ==0) return [0,0,0,0];
+        var x = Math.min(...this.xList);
+        var y = Math.min(...this.yList);
+        var w = Math.max(...this.xList)-x;
+        var h = Math.max(...this.yList)-y;
+        return [x,y,w,h];
     }
 }
 // endregion

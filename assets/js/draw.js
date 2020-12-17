@@ -26,12 +26,12 @@
         // The shapes we can choose from
         availableShapes: {
             RECTANGLE: 'rectangle',
-            OVAL: 'oval',
-            CIRCLE: 'circle',
-            LINE: 'line',
-            LINE_LIST: 'lineList',
-            DrawnText: 'text',
-            MOVE: 'move' // TODO
+            // OVAL: 'oval',
+            // CIRCLE: 'circle',
+            // LINE: 'line',
+            LINE_LIST: 'lineList'
+            // DrawnText: 'text',
+            // MOVE: 'move' // TODO
         },
         // Settings for selectedElement
         settings: {
@@ -55,7 +55,8 @@
                 this.inited = true
             }
         },
-        bgimg: new Image(),
+        bgimg: null,
+        resbgimg: null,
 
         selectedimg: {},
 
@@ -77,7 +78,7 @@
                 // image will be copied shallowly, as it will not be modified
                 newImg[key] = drawer.selectedimg[key];
             }
-            return [newShapes,__deepcopy(drawer.layerOrder),newImg];
+            return [newShapes,__deepcopy(drawer.layerOrder),newImg,drawer.bgimg,drawer.resbgimg];
         },
 
         // (shallow) copy status
@@ -85,6 +86,8 @@
             drawer.shapes = newStat[0];
             drawer.layerOrder = newStat[1];
             drawer.selectedimg = newStat[2];
+            drawer.bgimg = newStat[3];
+            drawer.resbgimg = newStat[4];
         },
 
         display: function() {
@@ -93,7 +96,10 @@
             // draw background
             drawer.resctx.fillStyle = "#ffffff";
             drawer.resctx.strokeStyle = "#ffffff";
-            drawer.resctx.fillRect(0, 0, drawer.resctx.canvas.width, drawer.resctx.canvas.height)
+            if (drawer.resbgimg)
+                drawer.resctx.drawImage(drawer.resbgimg, 0, 0, drawer.resctx.canvas.width, drawer.resctx.canvas.height)
+            else 
+                drawer.resctx.fillRect(0, 0, drawer.resctx.canvas.width, drawer.resctx.canvas.height)
 
             // layer table
             var tbody = $('#layer-table > tbody');
@@ -123,26 +129,39 @@
             };
 
             for (var i of drawer.layerOrder){
-                if(i >= 0 && i < drawer.shapes.length && (drawer.shapes[i] instanceof Rectangle)){
-                    let col = drawer.shapes[i].settings.color
-                    if(col in drawer.selectedimg){
-                        // draw image
-                        var x = drawer.shapes[i].position.x
-                        var y = drawer.shapes[i].position.y
-                        var w = drawer.shapes[i].width
-                        var h = drawer.shapes[i].height
-                        drawer.resctx.drawImage(drawer.selectedimg[col], x, y, w, h)
+                if(i >= 0 && i < drawer.shapes.length){
+                    if (drawer.shapes[i] instanceof Rectangle) {
+                        let col = drawer.shapes[i].settings.color
+                        if(col in drawer.selectedimg){
+                            // draw image
+                            var x = drawer.shapes[i].position.x
+                            var y = drawer.shapes[i].position.y
+                            var w = drawer.shapes[i].width
+                            var h = drawer.shapes[i].height
+                            drawer.resctx.drawImage(drawer.selectedimg[col], x, y, w, h)
 
-                        // display layer
-                        tbody.append(makeRow(i, col, drawer.selectedimg[col].getAttribute('src')));
+                            // display layer
+                            tbody.append(makeRow(i, col, drawer.selectedimg[col].getAttribute('src')));
+                        }
+                    }
+                    else if (drawer.shapes[i] instanceof LineList) {
+                        let col = drawer.shapes[i].settings.color
+                        if(col in drawer.selectedimg){
+                            // draw image
+                            var sizeArr = drawer.shapes[i].getsize();
+                            drawer.resctx.drawImage(drawer.selectedimg[col], ...sizeArr);
+
+                            // display layer
+                            tbody.append(makeRow(i, col, drawer.selectedimg[col].getAttribute('src')));
+                        }
                     }
                 }
             }
         },
 
         drawResult: function (){
-            console.log(drawer.statHistory);
-            console.log(drawer.shapes);
+            // console.log(drawer.statHistory);
+            // console.log(drawer.shapes);
             drawer.display();
         },
         
@@ -169,6 +188,9 @@
             //draw background image
             if(this.bgimg){
                 drawer.ctx.drawImage(this.bgimg, 0, 0, drawer.ctx.canvas.width, drawer.ctx.canvas.height);
+            }
+            else {
+                drawer.ctx.fillRect(0, 0, drawer.ctx.canvas.width, drawer.ctx.canvas.height)
             }
             
             for (let i = 1; i < drawer.shapes.length; i++) {
@@ -806,9 +828,11 @@
             var img = new Image();
             img.src = src;
             img.onload = function() {
+                drawer.bgimg = new Image();
                 drawer.bgimg.src = img.src
-                drawer.ctx.drawImage(img, 0, 0, drawer.ctx.canvas.width, drawer.ctx.canvas.height);
                 url.revokeObjectURL(src);
+                drawer.redraw();
+                drawer.display();
             }
         });
         reader.readAsText(file);
@@ -886,6 +910,7 @@
             let newImg = document.createElement('img');
             newImg.setAttribute('src', 'data:image/png;base64, '+img);
             newImg.setAttribute('height', '128');
+            newImg.setAttribute('style', 'margin-left:5px;');
             newLab.appendChild(newInput);
             newLab.appendChild(newImg);
             return newLab;
@@ -985,6 +1010,19 @@
 
     $('#upload-image').on('click', setImage2);
 
+    function setBackground() {
+        var checked = $('#object-images input[type=radio]:checked');
+        if (!checked) {
+            return;
+        }
+        var img = checked.next()[0];
+        drawer.resbgimg=img;
+        drawer.drawResult();
+        $('#object-modal').modal('hide');
+    }
+
+    $('#upload-background').on('click', setBackground);
+
     // sync display with layer
     function syncWithLayer() {
         var order = sortableLayer.toArray().map(Number);
@@ -1027,4 +1065,5 @@
     // endregion
     // endregion
 
+    drawer.init();
 })();
