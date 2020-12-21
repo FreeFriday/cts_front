@@ -10,10 +10,10 @@
     let drawer = {
         // A list of shapes on the canvas
         shapes: [],
-        // If any shapes are undone they are kept here temporarily
-        undoneShapes: [],
+        // settings for postprocessing
+        PPSetting: [],
         // The shape currently selected
-        selectedShape: 'lineList',
+        selectedShape: 'rectangle',
         // Canvas DOM element
         canvas: document.getElementById('canvas'),
         // The context of the canvas
@@ -44,7 +44,7 @@
         inited : false,
         init: function(){
             if(!this.inited){
-                this.shapes.push(new Rectangle({x:0, y:0}, {
+                drawer.shapePush(new Rectangle({x:0, y:0}, {
                     color: '#FFFFFF',
                     filled: true,
                     width: 1,
@@ -118,16 +118,18 @@
                 });
                 var c2 = $('<td>').append($('<span>').attr('title',col).append(colorSquare));
                 var c3 = $('<td>').append($('<img>').attr('src',src).attr('width',25).attr('height',25));
-                var c4 = $('<td>').append($('<span>').attr('style','cursor: pointer;').html('&#10006;').click(function(){
+                var c4 = $('<td>').append($('<span>').attr('style','cursor: pointer;').attr('data-idx',idx).html('&#9881;')
+                         .attr("data-toggle","modal").attr("data-target","#layer-setting-modal"));
+                var c5 = $('<td>').append($('<span>').attr('style','cursor: pointer;').html('&#10006;').click(function(){
                     $("#layer-table > tbody > tr[data-id="+idx+"]").remove();
                     drawer.shapes[idx] = new NullShape();
                     // sync display with layer
                     drawer.redraw();
                     syncWithLayer();
                 }));
-                return $('<tr>').attr('data-id', idx).append(c1,c2,c3,c4);
+                return $('<tr>').attr('data-id', idx).append(c1,c2,c3,c4,c5);
             };
-
+            
             for (var i of drawer.layerOrder){
                 if(i >= 0 && i < drawer.shapes.length){
                     if (drawer.shapes[i] instanceof Rectangle) {
@@ -138,8 +140,7 @@
                             var y = drawer.shapes[i].position.y
                             var w = drawer.shapes[i].width
                             var h = drawer.shapes[i].height
-                            drawer.resctx.drawImage(drawer.selectedimg[col], x, y, w, h)
-
+                            drawer.resctx.drawImage(drawer.selectedimg[col], x, y, w, h);
                             // display layer
                             tbody.append(makeRow(i, col, drawer.selectedimg[col].getAttribute('src')));
                         }
@@ -150,7 +151,6 @@
                             // draw image
                             var sizeArr = drawer.shapes[i].getsize();
                             drawer.resctx.drawImage(drawer.selectedimg[col], ...sizeArr);
-
                             // display layer
                             tbody.append(makeRow(i, col, drawer.selectedimg[col].getAttribute('src')));
                         }
@@ -243,15 +243,7 @@
         shapePush: function (item) {
             drawer.layerOrder.push(drawer.shapes.length);
             drawer.shapes.push(item);
-        },
-        /**
-         * Wrapper for drawer.shapes.pop
-         */
-        shapePop: function () {
-            let popped = drawer.shapes.pop();
-            const idx = drawer.layerOrder.indexOf(drawer.shapes.length);
-            if (idx > -1) drawer.layerOrder.splice(idx,1);
-            return popped;
+            drawer.PPSetting.push([1,0]);
         }
     };
     // endregion
@@ -1064,6 +1056,167 @@
     // endregion
     // endregion
     // endregion
+
+    
+
+    function postprocess() {
+        // <form id="image_form" method="POST">
+        //     Select image to upload:
+        //     <input type="file" name="img" id="img" accept="image/*" onchange="displayInput(event);">
+        // </form>
+        loadRescaledImage = function(img, i, setting, x, y, w, h, callback) {
+            // var formData = new FormData();
+            // console.log(img.src);
+            // console.log(new File([{"filename" : img.src}],""));
+            // formData.append("img", new File([img], "image.png"));
+            var tempCanvas = document.createElement('canvas');
+            tempCanvas.width = w;
+            tempCanvas.height = h;
+            var tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(img,0,0,w,h);
+            tempCanvas.toBlob(function(blob){
+                var formData = new FormData();
+                formData.append("img", new File([blob], "image.png"));
+                console.log(setting[0],setting[1]);
+                $.ajax({
+                    url: 'http://125.133.86.107:8080/postprocessor?w='+w+'&h='+h+'&level='+setting[0]+'&bi='+setting[1],
+                    processData: false,
+                    contentType: false,
+                    data: formData,
+                    type: 'POST',
+                    async: false,
+                    success: function(res){
+                        callback(res.img,x,y,w,h,i);
+                    },
+                    error: function (jqXHR, textStatus, errorThrown) {
+                        console.log("ERR!");
+                        console.log(errorThrown);
+                        switch(jqXHR.status){
+                            case 500:
+                                // status.innerText = "Internal server error."
+                                break;
+                        }
+                        // status.style.color = "red"
+                    }
+                });
+            });
+        };
+
+        var tempCanvas = document.createElement('canvas');
+        tempCanvas.width = drawer.canvasres.width;
+        tempCanvas.height = drawer.canvasres.height;
+
+        var tempCtx = tempCanvas.getContext('2d');
+        tempCtx.fillStyle = "#ffffff";
+        tempCtx.strokeStyle = "#ffffff";
+        if (drawer.resbgimg)
+            tempCtx.drawImage(drawer.resbgimg, 0, 0, drawer.resctx.canvas.width, drawer.resctx.canvas.height)
+        else 
+            tempCtx.fillRect(0, 0, drawer.resctx.canvas.width, drawer.resctx.canvas.height)
+        
+        resLis = []
+        for (var i of drawer.layerOrder){
+            if(i >= 0 && i < drawer.shapes.length){
+                var draw = false;
+                var sizeArr = [0,0,0,0];
+                let col = drawer.shapes[i].settings.color
+                if (drawer.shapes[i] instanceof Rectangle) {
+                    if(col in drawer.selectedimg){
+                        // draw image
+                        var x = drawer.shapes[i].position.x
+                        var y = drawer.shapes[i].position.y
+                        var w = drawer.shapes[i].width
+                        var h = drawer.shapes[i].height
+                        sizeArr = [x,y,w,h];
+                        draw = true;
+                    }
+                }
+                else if (drawer.shapes[i] instanceof LineList) {
+                    if(col in drawer.selectedimg){
+                        // draw image
+                        sizeArr = drawer.shapes[i].getsize();
+                        draw = true;
+                    }
+                }
+                if (draw) {
+                    resLis.push(null);
+                    loadRescaledImage(drawer.selectedimg[col], resLis.length-1, drawer.PPSetting[i], ...sizeArr, function(img, x, y, w, h, i) {
+                        var display = new Image();
+                        display.src = 'data:image/png;base64,' + img;
+                        display.onload = function() {
+                            resLis[i] = { "img":display, "size":[x,y,w,h] };
+                        };
+                    });
+                }
+            }
+        }
+
+        var timerID = setInterval(function(){render(timerID)}, 500);
+
+        var cur = 0;
+        var render = function(tid) {
+            while(cur<resLis.length && resLis[cur]!=null) {
+                tempCtx.drawImage(resLis[cur]["img"], ...resLis[cur]["size"]);
+                cur++;
+            }
+            if (cur>=resLis.length) {
+                // var resDisplay = document.getElementById('processed-image');
+                // resDisplay.src = tempCanvas.toDataURL();
+                // resDisplay.setAttribute("style","width: "+tempCanvas.width+"px; height: "+tempCanvas.height+"px; object-fit: contain");
+                // $('#postprocess-modal').modal('toggle');
+                tempCanvas.toBlob(function(blob){
+                    var formData = new FormData();
+                    formData.append("img", new File([blob], "image.png"));
+                    $.ajax({
+                        url: 'http://125.133.86.107:8080/transfer?bgrmv=false',
+                        processData: false,
+                        contentType: false,
+                        data: formData,
+                        type: 'POST',
+                        success: function(result){
+                            var resDisplay = document.getElementById('processed-image');
+                            console.log(resDisplay);
+                            resDisplay.src = 'data:image/png;base64,' + result.img
+                            resDisplay.setAttribute("style","width: "+tempCanvas.width+"px; height: "+tempCanvas.height+"px; object-fit: contain");
+                            $('#postprocess-modal').modal('toggle');
+                        },
+                        error: function (jqXHR, textStatus, errorThrown) {
+                            console.log("ERR!");
+                            console.log(errorThrown);
+                            switch(jqXHR.status){
+                                case 500:
+                                    break;
+                            }
+                        }
+                    });
+                });
+                clearInterval(tid);
+                return;
+            }
+        };
+    };
+
+    $("#request-process").click(postprocess);
+
+    $("#layer-setting-modal").on('show.bs.modal', function (event) {
+        var button = $(event.relatedTarget);
+        var idx = button.data('idx');
+        console.log(idx);
+        console.log(drawer.PPSetting[idx]);
+        $("#layer-setting-modal").attr("data-value",idx);
+        $("#level-slider")[0].value = drawer.PPSetting[idx][0];
+        $("#bi-slider")[0].value = drawer.PPSetting[idx][1];
+    });
+
+    function saveSetting() {
+        var idx = Number($("#layer-setting-modal").attr("data-value"));
+        drawer.PPSetting[idx][0] = Number($("#level-slider")[0].value);
+        drawer.PPSetting[idx][1] = Number($("#bi-slider")[0].value);
+        console.log(drawer.PPSetting);
+        $("#layer-setting-modal").modal("toggle");
+    };
+
+    $("#save-layer-setting").click(saveSetting);
 
     drawer.init();
 })();
