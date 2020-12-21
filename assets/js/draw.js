@@ -78,7 +78,11 @@
                 // image will be copied shallowly, as it will not be modified
                 newImg[key] = drawer.selectedimg[key];
             }
-            return [newShapes,__deepcopy(drawer.layerOrder),newImg,drawer.bgimg,drawer.resbgimg];
+            var newSetting = [];
+            for (setting of drawer.PPSetting) {
+                newSetting.push([setting[0],setting[1]]);
+            }
+            return [newShapes,__deepcopy(drawer.layerOrder),newImg,drawer.bgimg,drawer.resbgimg,newSetting];
         },
 
         // (shallow) copy status
@@ -88,6 +92,7 @@
             drawer.selectedimg = newStat[2];
             drawer.bgimg = newStat[3];
             drawer.resbgimg = newStat[4];
+            drawer.PPSetting = newStat[5];
         },
 
         display: function() {
@@ -243,7 +248,7 @@
         shapePush: function (item) {
             drawer.layerOrder.push(drawer.shapes.length);
             drawer.shapes.push(item);
-            drawer.PPSetting.push([1,0]);
+            drawer.PPSetting.push([0,0]);
         }
     };
     // endregion
